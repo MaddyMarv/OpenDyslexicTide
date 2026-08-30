@@ -11,13 +11,13 @@ return {
         en = "Font Version",
     },
     font_version_v3 = {
-        en = "OpenDyslexic 3 (More Compatible)",
+        en = "OpenDyslexic Version 3",
     },
     font_version_v2 = {
-        en = "OpenDyslexic 2 (Alta)",
+        en = "OpenDyslexic Alta",
     },
     font_version_v1 = {
-        en = "OpenDyslexic 1 (Better Readability)",
+        en = "OpenDyslexic Regular",
     },
     use_font_on_hud = {
         en = "Use Font on HUD",
