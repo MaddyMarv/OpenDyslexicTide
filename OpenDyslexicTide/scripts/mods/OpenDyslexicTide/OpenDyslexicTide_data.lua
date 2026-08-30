@@ -22,6 +22,13 @@ return {
                 default_value = true,
             },
             {
+                setting_id = "hud_font_scale",
+                type = "numeric",
+                default_value = 100,
+                range = { 50, 150 },
+                decimals_number = 0,
+            },
+            {
                 setting_id = "small_font_scale",
                 type = "numeric",
                 default_value = 75,

@@ -97,20 +97,34 @@ local function get_custom_font_info(font_type)
     return font_type_cache[font_type]
 end
 
-local function ensure_font_def(base_hash)
+local function get_or_create_custom_font(font_type, loaded_hash)
     local Managers = _G.Managers
-    if not Managers or not Managers.font then return end
+    if not Managers or not Managers.font then return loaded_hash end
     local defs = Managers.font._font_definitions
-    if not defs then return end
+    if not defs then return loaded_hash end
     
-    if not defs[base_hash] then
-        local Gui = _G.Gui
-        local paths = { base_hash, "content/ui/fonts/darktide_custom_regular" }
-        defs[base_hash] = { path = paths, render_flags = Gui.MultiLine + Gui.FormatDirectives }
-        defs[base_hash .. "_no_render_flags"] = { path = paths }
-        defs[base_hash .. "_masked"] = { path = paths, render_flags = Gui.MultiLine + Gui.Masked + Gui.FormatDirectives }
-        defs[base_hash .. "_write_mask"] = { path = paths, render_flags = Gui.MultiLine + Gui.WriteMask + Gui.FormatDirectives }
+    local custom_font_type = loaded_hash .. "_" .. font_type
+    if not defs[custom_font_type] then
+        local original_def = defs[font_type]
+        local paths = { loaded_hash }
+        local flags = _G.Gui.MultiLine + _G.Gui.FormatDirectives
+        
+        if original_def then
+            flags = original_def.render_flags or flags
+            if original_def.path then
+                for i = 1, #original_def.path do
+                    if original_def.path[i] ~= loaded_hash then
+                        paths[#paths + 1] = original_def.path[i]
+                    end
+                end
+            end
+        else
+            paths[#paths + 1] = "content/ui/fonts/darktide_custom_regular"
+        end
+        
+        defs[custom_font_type] = { path = paths, render_flags = flags }
     end
+    return custom_font_type
 end
 
 local function is_hud(renderer)
@@ -128,22 +142,20 @@ local function is_hud(renderer)
     return is_hud_cache[renderer]
 end
 
+local icon_string_cache = {}
+
 local function process_text_draw(self, text, font_size, font_type)
     if type(font_type) ~= "string" then 
-        return font_size, font_type 
+        return font_size, font_type, text
     end
 
     local font_info = get_custom_font_info(font_type)
     if not font_info then
-        return font_size, font_type
-    end
-    
-    if type(text) == "string" and (string.find(text, "\xee\x80") or string.find(text, "{#icon")) then
-        return font_size, font_type
+        return font_size, font_type, text
     end
     
     if mod:get("use_font_on_hud") == false and is_hud(self) then
-        return font_size, font_type
+        return font_size, font_type, text
     end
 
     local target_key = active_font
@@ -152,11 +164,11 @@ local function process_text_draw(self, text, font_size, font_type)
     
     local custom_font_type = font_type
     local loaded_hash = loaded_fonts[target_key]
-    if loaded_hash and font_info.base_name then
-        ensure_font_def(loaded_hash)
-        custom_font_type = string.gsub(font_type, font_info.base_name, loaded_hash)
+    if loaded_hash then
+        custom_font_type = get_or_create_custom_font(font_type, loaded_hash)
     end
 
+    local original_font_size = font_size
     if type(font_size) == "number" then
         local small = (mod:get("small_font_scale") or 100) / 100
         local medium = (mod:get("medium_font_scale") or 100) / 100
@@ -172,28 +184,46 @@ local function process_text_draw(self, text, font_size, font_type)
         else
             font_size = font_size * huge
         end
+        if is_hud(self) then
+            local hud_scale = (mod:get("hud_font_scale") or 100) / 100
+            font_size = font_size * hud_scale
+        end
     end
 
-    return font_size, custom_font_type
+    if type(text) == "string" and type(font_size) == "number" and type(original_font_size) == "number" and font_size ~= original_font_size then
+        if string.find(text, "\xee[\x80-\xbf]") or string.find(text, "{#icon") then
+            local cache_key = text .. "_" .. tostring(font_size) .. "_" .. tostring(original_font_size)
+            if icon_string_cache[cache_key] then
+                text = icon_string_cache[cache_key]
+            else
+                local new_text = string.gsub(text, "(\xee[\x80-\xbf][\x80-\xbf])", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
+                new_text = string.gsub(new_text, "({#icon.-})", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
+                icon_string_cache[cache_key] = new_text
+                text = new_text
+            end
+        end
+    end
+
+    return font_size, custom_font_type, text
 end
 
 mod:hook(UIRenderer, "script_draw_text", function(func, self, text, font_size, font_type, gui_position, gui_size, color, options, retained_id, ...)
-    local final_size, final_font = process_text_draw(self, text, font_size, font_type)
-    return func(self, text, final_size, final_font, gui_position, gui_size, color, options, retained_id, ...)
+    local final_size, final_font, final_text = process_text_draw(self, text, font_size, font_type)
+    return func(self, final_text, final_size, final_font, gui_position, gui_size, color, options, retained_id, ...)
 end)
 
 mod:hook(UIRenderer, "script_draw_text_3d", function(func, self, text, font_size, font_type, ...)
-    local final_size, final_font = process_text_draw(self, text, font_size, font_type)
-    return func(self, text, final_size, final_font, ...)
+    local final_size, final_font, final_text = process_text_draw(self, text, font_size, font_type)
+    return func(self, final_text, final_size, final_font, ...)
 end)
 
 mod:hook(UIRenderer, "text_size", function(func, self, text, font_type, font_size, ...)
-    local final_size, final_font = process_text_draw(self, text, font_size, font_type)
-    return func(self, text, final_font, final_size, ...)
+    local final_size, final_font, final_text = process_text_draw(self, text, font_size, font_type)
+    return func(self, final_text, final_font, final_size, ...)
 end)
 
 mod:hook(UIRenderer, "styled_text_size", function(func, self, text, style, ...)
-    local final_size, final_font = process_text_draw(self, text, style.font_size, style.font_type)
+    local final_size, final_font, final_text = process_text_draw(self, text, style.font_size, style.font_type)
     
     local old_font = style.font_type
     local old_size = style.font_size
@@ -201,7 +231,7 @@ mod:hook(UIRenderer, "styled_text_size", function(func, self, text, style, ...)
     style.font_type = final_font
     style.font_size = final_size
     
-    local width, height, min, caret = func(self, text, style, ...)
+    local width, height, min, caret = func(self, final_text, style, ...)
     
     style.font_type = old_font
     style.font_size = old_size
@@ -210,6 +240,6 @@ mod:hook(UIRenderer, "styled_text_size", function(func, self, text, style, ...)
 end)
 
 mod:hook(UIRenderer, "text_height", function(func, self, text, font_type, font_size, ...)
-    local final_size, final_font = process_text_draw(self, text, font_size, font_type)
-    return func(self, text, final_font, final_size, ...)
+    local final_size, final_font, final_text = process_text_draw(self, text, font_size, font_type)
+    return func(self, final_text, final_font, final_size, ...)
 end)

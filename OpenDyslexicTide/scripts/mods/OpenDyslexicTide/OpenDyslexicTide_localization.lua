@@ -22,6 +22,9 @@ return {
     use_font_on_hud = {
         en = "Use Font on HUD",
     },
+    hud_font_scale = {
+        en = "HUD Specific Scale (Multiplier)",
+    },
     small_font_scale = {
         en = "Small Text Scale (<= 24)",
     },
