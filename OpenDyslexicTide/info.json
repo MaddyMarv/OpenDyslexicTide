@@ -1,0 +1,12 @@
+{
+    "name": "OpenDyslexicTide",
+    "author": "IndicaBunny",
+    "version": "1.0.0",
+    "description": "Replaces game fonts with OpenDyslexic for better readability.",
+    "order": {
+        "require": [],
+        "this_before": [],
+        "this_after": []
+    },
+    "localization": {}
+}

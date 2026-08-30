@@ -1,0 +1,39 @@
+local mod = get_mod("OpenDyslexicTide")
+
+return {
+    name = mod:localize("mod_name"),
+    description = mod:localize("mod_description"),
+    is_togglable = true,
+    options = {
+        widgets = {
+            {
+                setting_id = "small_font_scale",
+                type = "numeric",
+                default_value = 75,
+                range = { 50, 150 },
+                decimals_number = 0,
+            },
+            {
+                setting_id = "medium_font_scale",
+                type = "numeric",
+                default_value = 70,
+                range = { 50, 150 },
+                decimals_number = 0,
+            },
+            {
+                setting_id = "large_font_scale",
+                type = "numeric",
+                default_value = 72,
+                range = { 50, 150 },
+                decimals_number = 0,
+            },
+            {
+                setting_id = "huge_font_scale",
+                type = "numeric",
+                default_value = 85,
+                range = { 50, 150 },
+                decimals_number = 0,
+            },
+        },
+    },
+}
