@@ -19,6 +19,9 @@ return {
     font_version_v1 = {
         en = "OpenDyslexic 1 (Better Readability)",
     },
+    use_font_on_hud = {
+        en = "Use Font on HUD",
+    },
     small_font_scale = {
         en = "Small Text Scale (<= 24)",
     },

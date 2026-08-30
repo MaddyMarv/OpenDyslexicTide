@@ -17,6 +17,11 @@ return {
                 },
             },
             {
+                setting_id = "use_font_on_hud",
+                type = "checkbox",
+                default_value = true,
+            },
+            {
                 setting_id = "small_font_scale",
                 type = "numeric",
                 default_value = 75,
