@@ -14,7 +14,7 @@ return {
         en = "OpenDyslexic Version 3",
     },
     font_version_v2 = {
-        en = "OpenDyslexic Alta",
+        en = "OpenDyslexic Version 2",
     },
     font_version_v1 = {
         en = "OpenDyslexic Regular",
