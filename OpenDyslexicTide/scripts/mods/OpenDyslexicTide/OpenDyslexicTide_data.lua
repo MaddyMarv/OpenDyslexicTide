@@ -7,6 +7,16 @@ return {
     options = {
         widgets = {
             {
+                setting_id = "font_version",
+                type = "dropdown",
+                default_value = "opendyslexic3",
+                options = {
+                    { text = "font_version_v3", value = "opendyslexic3" },
+                    { text = "font_version_v2", value = "opendyslexic2" },
+                    { text = "font_version_v1", value = "opendyslexic" },
+                },
+            },
+            {
                 setting_id = "small_font_scale",
                 type = "numeric",
                 default_value = 75,

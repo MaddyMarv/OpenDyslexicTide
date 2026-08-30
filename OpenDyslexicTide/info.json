@@ -4,7 +4,9 @@
     "version": "1.0.0",
     "description": "Replaces game fonts with OpenDyslexic for better readability.",
     "order": {
-        "require": [],
+        "require": [
+            "SimpleAssets"
+        ],
         "this_before": [],
         "this_after": []
     },
