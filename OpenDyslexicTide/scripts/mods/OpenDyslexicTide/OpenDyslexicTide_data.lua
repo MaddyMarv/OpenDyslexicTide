@@ -33,7 +33,7 @@ return {
                         default_value = 100,
                         range = { 50, 150 },
                         decimals_number = 0,
-                        step_size_value = 5,
+                        step_size_value = 1,
                     },
                     {
                         setting_id = "small_font_scale",
@@ -41,7 +41,7 @@ return {
                         default_value = 80,
                         range = { 50, 150 },
                         decimals_number = 0,
-                        step_size_value = 5,
+                        step_size_value = 1,
                     },
                     {
                         setting_id = "medium_font_scale",
@@ -49,7 +49,7 @@ return {
                         default_value = 80,
                         range = { 50, 150 },
                         decimals_number = 0,
-                        step_size_value = 5,
+                        step_size_value = 1,
                     },
                     {
                         setting_id = "large_font_scale",
@@ -57,7 +57,7 @@ return {
                         default_value = 85,
                         range = { 50, 150 },
                         decimals_number = 0,
-                        step_size_value = 5,
+                        step_size_value = 1,
                     },
                     {
                         setting_id = "huge_font_scale",
@@ -65,7 +65,7 @@ return {
                         default_value = 85,
                         range = { 50, 150 },
                         decimals_number = 0,
-                        step_size_value = 5,
+                        step_size_value = 1,
                     },
                     {
                         setting_id = "disable_font_in_chat_input",
@@ -95,7 +95,7 @@ return {
                         default_value = 230,
                         range = { 0, 255 },
                         decimals_number = 0,
-                        step_size_value = 5,
+                        step_size_value = 1,
                     },
                     {
                         setting_id = "high_contrast_padding_x",

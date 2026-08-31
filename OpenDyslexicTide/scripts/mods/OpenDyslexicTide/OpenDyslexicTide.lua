@@ -477,7 +477,7 @@ function mod.on_all_mods_loaded()
         patch_text_input_templates(templates)
     end)
 
-    local function hook_chat_init(cls)
+    local function hook_chat_element(cls)
         if cls then
             mod:hook_safe(cls, "init", function(self)
                 if self._input_field_widget and self._input_field_widget.content then
@@ -485,13 +485,33 @@ function mod.on_all_mods_loaded()
                     self._input_field_widget.content.value_id_5 = _custom_selection_logic_pass
                 end
             end)
+
+            mod:hook(cls, "_update_input_field", function(func, self, ui_renderer, widget)
+                func(self, ui_renderer, widget)
+
+                local to_channel_text = widget.content.to_channel
+                if to_channel_text and to_channel_text ~= "" then
+                    local extra_spacing = 10
+                    local style = widget.style
+                    local text_style = style.display_text
+
+                    text_style.offset[1] = text_style.offset[1] + extra_spacing
+                    if text_style.size_addition then
+                        text_style.size_addition[1] = text_style.size_addition[1] - extra_spacing
+                    end
+                    if style.active_placeholder then
+                        style.active_placeholder.offset[1] = style.active_placeholder.offset[1] + extra_spacing
+                    end
+                    widget.content.force_caret_update = true
+                end
+            end)
         end
     end
 
     if _G.ConstantElementChat then
-        hook_chat_init(_G.ConstantElementChat)
+        hook_chat_element(_G.ConstantElementChat)
     else
-        mod:hook_require("scripts/ui/constant_elements/elements/chat/constant_element_chat", hook_chat_init)
+        mod:hook_require("scripts/ui/constant_elements/elements/chat/constant_element_chat", hook_chat_element)
     end
 end
 
