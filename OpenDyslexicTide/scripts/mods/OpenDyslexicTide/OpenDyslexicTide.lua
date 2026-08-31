@@ -463,6 +463,29 @@ local function draw_text_background(self, text, font_size, font_type, gui_positi
         end
     end
 
+    local renderer_name = self.name and type(self.name) == "string" and string.lower(self.name) or ""
+    if string.find(renderer_name, "mission", 1, true) then
+        local is_banner = false
+        if Managers and Managers.localization then
+            local maelstrom_text = Managers.localization:localize("loc_mission_board_maelstrom_header")
+            local event_text = Managers.localization:localize("loc_mission_board_mission_category_event")
+            if (maelstrom_text and string.find(text, maelstrom_text, 1, true)) or 
+               (event_text and string.find(text, event_text, 1, true)) then
+                is_banner = true
+            end
+        end
+        if not is_banner then
+            local lower_text = string.lower(text)
+            if string.find(lower_text, "maelstrom", 1, true) or string.find(lower_text, "event", 1, true) then
+                is_banner = true
+            end
+        end
+        
+        if is_banner then
+            return
+        end
+    end
+
     if not text or type(text) ~= "string" or text == "" or not string.find(text, "%S") or not gui_position then
         return
     end
