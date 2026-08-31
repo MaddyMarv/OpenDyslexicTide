@@ -5,23 +5,47 @@ local UIRenderer = require("scripts/managers/ui/ui_renderer")
 local UIFonts = require("scripts/managers/ui/ui_fonts")
 local UIWidget = require("scripts/managers/ui/ui_widget")
 local HudElementWorldMarkersSettings = require("scripts/ui/hud/elements/world_markers/hud_element_world_markers_settings")
-local GuiMaterialFlag = _G.GuiMaterialFlag
 
-local scalable_fonts = {
-    arial = true,
-    itc_novarese_medium = true,
-    itc_novarese_bold = true,
-    proxima_nova_light = true,
-    proxima_nova_medium = true,
-    proxima_nova_bold = true,
-    friz_quadrata = true,
-    rexlia = true,
-    machine_medium = true,
-    mono_tide_regular = true,
-    mono_tide_medium = true,
-    mono_tide_bold = true,
-    mono_tide_light = true
+local GuiMaterialFlag = _G.GuiMaterialFlag
+local Gui = _G.Gui
+local Gui2 = _G.Gui2
+local Vector2 = _G.Vector2
+local Vector3 = _G.Vector3
+local Color = _G.Color
+local Managers = _G.Managers
+local Utf8 = _G.Utf8
+
+local type = type
+local tostring = tostring
+local math_max = math.max
+local math_min = math.min
+local math_floor = math.floor
+local math_clamp = math.clamp
+local string_find = string.find
+local string_gsub = string.gsub
+local string_lower = string.lower
+local bit_band = bit.band
+local bit_bor = bit.bor
+local table_clear = table.clear
+local Utf8_string_length = Utf8.string_length
+local Utf8_sub_string = Utf8.sub_string
+
+local scalable_fonts_list = {
+    "arial",
+    "itc_novarese_medium",
+    "itc_novarese_bold",
+    "proxima_nova_light",
+    "proxima_nova_medium",
+    "proxima_nova_bold",
+    "friz_quadrata",
+    "rexlia",
+    "machine_medium",
+    "mono_tide_regular",
+    "mono_tide_medium",
+    "mono_tide_bold",
+    "mono_tide_light",
 }
+local num_scalable_fonts = #scalable_fonts_list
 
 local loaded_fonts = {
     opendyslexic3 = nil,
@@ -30,7 +54,7 @@ local loaded_fonts = {
     opendyslexic2_bold = nil,
     opendyslexic = nil,
     opendyslexic_bold = nil,
-    opendyslexic_mono = nil
+    opendyslexic_mono = nil,
 }
 
 local active_font = "opendyslexic3"
@@ -65,9 +89,18 @@ local is_drawing_pings = false
 local is_drawing_nameplates = false
 local is_drawing_interactions = false
 local is_drawing_objectives = false
+
 local custom_font_cache = {}
 local icon_string_cache = {}
 local cjk_string_cache = {}
+local clean_text_cache = {}
+local font_type_cache = {}
+local renderer_info_cache = setmetatable({}, { __mode = "k" })
+local marker_type_flags = {}
+
+local cached_is_cjk_locale = false
+local cached_maelstrom_header = nil
+local cached_event_header = nil
 
 local function update_all_cached_settings()
     local ver = mod:get("font_version") or "opendyslexic3"
@@ -119,34 +152,47 @@ local function update_all_cached_settings()
     local hc_obj_val = mod:get("high_contrast_on_objectives")
     setting_high_contrast_on_objectives = (hc_obj_val == nil) and true or not not hc_obj_val
 
-    table.clear(custom_font_cache)
-    table.clear(icon_string_cache)
-    table.clear(cjk_string_cache)
+    local localization_manager = Managers.localization
+    if localization_manager then
+        local current_locale = localization_manager:language()
+        cached_is_cjk_locale = (current_locale == "zh-cn" or current_locale == "zh-tw" or current_locale == "ja" or current_locale == "ko")
+        cached_maelstrom_header = localization_manager:localize("loc_mission_board_maelstrom_header")
+        cached_event_header = localization_manager:localize("loc_mission_board_mission_category_event")
+    else
+        cached_is_cjk_locale = false
+        cached_maelstrom_header = nil
+        cached_event_header = nil
+    end
+
+    table_clear(custom_font_cache)
+    table_clear(icon_string_cache)
+    table_clear(cjk_string_cache)
+    table_clear(clean_text_cache)
 end
 
 local function _custom_crop_text_width(ui_renderer, text, max_width, last_start_position, caret_position, font_type, font_size)
     text = text or ""
     max_width = max_width > 0 and max_width or 0
 
-    local original_text_length = Utf8.string_length(text)
-    caret_position = caret_position or original_text_length + 1
+    local original_text_length = Utf8_string_length(text)
+    caret_position = caret_position or (original_text_length + 1)
 
     local prefix = ""
     local suffix = ""
     local start_index = 1
     local cropped_text = text
     local _ellipsis = "…"
-    local _ellipsis_length = Utf8.string_length(_ellipsis)
-    
+    local _ellipsis_length = 1
+
     local _1, _2, _3, caret_offset = UIRenderer.text_size(ui_renderer, text, font_type, font_size)
-    local ellipsis_width, _2, _3, ellipsis_caret = UIRenderer.text_size(ui_renderer, _ellipsis, font_type, font_size)
+    local ellipsis_width = UIRenderer.text_size(ui_renderer, _ellipsis, font_type, font_size)
     local actual_text_width = caret_offset and caret_offset[1] or 0
 
     if actual_text_width > 0 and max_width < actual_text_width then
         start_index = last_start_position or start_index
 
         if caret_position <= start_index then
-            start_index = math.max(caret_position - 1, 1)
+            start_index = math_max(caret_position - 1, 1)
         end
 
         if start_index > 1 then
@@ -155,8 +201,8 @@ local function _custom_crop_text_width(ui_renderer, text, max_width, last_start_
 
         repeat
             local width_percent = 1 - (1 - (max_width - ellipsis_width) / actual_text_width) * 0.5
-            local num_char = Utf8.string_length(cropped_text)
-            local number_of_characters_to_show = math.floor(num_char * width_percent)
+            local num_char = Utf8_string_length(cropped_text)
+            local number_of_characters_to_show = math_floor(num_char * width_percent)
             local last_index = start_index + number_of_characters_to_show - 1
 
             if original_text_length < last_index then
@@ -178,9 +224,9 @@ local function _custom_crop_text_width(ui_renderer, text, max_width, last_start_
                 suffix = ""
             end
 
-            cropped_text = Utf8.sub_string(text, start_index, last_index)
+            cropped_text = Utf8_sub_string(text, start_index, last_index)
             _1, _2, _3, caret_offset = UIRenderer.text_size(ui_renderer, prefix .. cropped_text .. suffix, font_type, font_size)
-            actual_text_width = caret_offset and math.floor(caret_offset[1]) or 0
+            actual_text_width = caret_offset and math_floor(caret_offset[1]) or 0
         until actual_text_width <= max_width
 
         cropped_text = prefix .. cropped_text .. suffix
@@ -193,7 +239,7 @@ local function _custom_crop_text_width(ui_renderer, text, max_width, last_start_
             num_chars_before_caret_pos = num_chars_before_caret_pos + _ellipsis_length
         end
 
-        local text_til_caret_pos = Utf8.sub_string(cropped_text, 1, num_chars_before_caret_pos)
+        local text_til_caret_pos = Utf8_sub_string(cropped_text, 1, num_chars_before_caret_pos)
         _1, _2, _3, caret_offset = UIRenderer.text_size(ui_renderer, text_til_caret_pos, font_type, font_size)
     end
 
@@ -212,7 +258,7 @@ local function _custom_caret_logic_pass(pass, ui_renderer, ui_style, content, po
     local text_has_changed = new_input_text ~= old_input_text
     local placeholder_text_has_changed = new_active_placeholder_text ~= old_active_placeholder_text
     local caret_position_has_changed = new_caret_position ~= old_caret_position
-    local text_length = new_input_text and Utf8.string_length(new_input_text) or 0
+    local text_length = new_input_text and Utf8_string_length(new_input_text) or 0
 
     if not text_has_changed and not placeholder_text_has_changed and not caret_position_has_changed and not force_caret_update then
         return
@@ -221,7 +267,7 @@ local function _custom_caret_logic_pass(pass, ui_renderer, ui_style, content, po
         return
     end
 
-    new_caret_position = new_caret_position and math.clamp(new_caret_position, 1, text_length + 1)
+    new_caret_position = new_caret_position and math_clamp(new_caret_position, 1, text_length + 1)
 
     local display_text_style = ui_style.parent.display_text
     local caret_style = ui_style.parent.input_caret
@@ -260,32 +306,38 @@ local function _custom_selection_logic_pass(pass, ui_renderer, ui_style, content
     local display_text_style = ui_style.parent.display_text
     local first_visible_character_pos = content._input_text_first_visible_pos or 1
     local _ellipsis = "…"
-    local _ellipsis_length = Utf8.string_length(_ellipsis)
+    local _ellipsis_length = 1
 
     if first_visible_character_pos > 1 then
         local offset = first_visible_character_pos - _ellipsis_length - 1
-        selection_start = math.max(selection_start - offset, 1)
+        selection_start = math_max(selection_start - offset, 1)
         selection_end = selection_end - offset
     end
 
-    local text_up_to_selection_start = Utf8.sub_string(display_text, 1, selection_start - 1)
+    local text_up_to_selection_start = Utf8_sub_string(display_text, 1, selection_start - 1)
     local _1, _2, _3, select_start_offset = UIRenderer.text_size(ui_renderer, text_up_to_selection_start, display_text_style.font_type, display_text_style.font_size)
-    local last_visible_character_pos = Utf8.string_length(display_text) + first_visible_character_pos
+    local last_visible_character_pos = Utf8_string_length(display_text) + first_visible_character_pos
 
     if last_visible_character_pos < selection_end then
         selection_end = last_visible_character_pos
     end
 
-    local visibly_selected_text = Utf8.sub_string(display_text, selection_start, selection_end - 1)
+    local visibly_selected_text = Utf8_sub_string(display_text, selection_start, selection_end - 1)
     local _1, _2, _3, selection_width = UIRenderer.text_size(ui_renderer, visibly_selected_text, display_text_style.font_type, display_text_style.font_size)
     local selection_style = ui_style.parent.selection
-    local selection_offset = selection_style.offset or {}
-    local selection_size = selection_style.size or {}
+    local selection_offset = selection_style.offset
+    if not selection_offset then
+        selection_offset = {}
+        selection_style.offset = selection_offset
+    end
+    local selection_size = selection_style.size
+    if not selection_size then
+        selection_size = {}
+        selection_style.size = selection_size
+    end
 
     selection_offset[1] = display_text_style.offset[1] + (select_start_offset and select_start_offset[1] or 0)
     selection_size[1] = selection_width and selection_width[1] or 0
-    selection_style.offset = selection_offset
-    selection_style.size = selection_size
 end
 
 local function patch_text_input_templates(TextInputPassTemplates)
@@ -300,7 +352,8 @@ local function patch_text_input_templates(TextInputPassTemplates)
             TextInputPassTemplates.simple_input_box,
             TextInputPassTemplates.terminal_input_field,
         }
-        for _, template in ipairs(templates) do
+        for i = 1, #templates do
+            local template = templates[i]
             if type(template) == "table" then
                 if template[4] and template[4].pass_type == "logic" then
                     template[4].value = _custom_caret_logic_pass
@@ -321,6 +374,53 @@ local function patch_text_input_templates(TextInputPassTemplates)
     end
 end
 
+local function get_marker_category(marker_type)
+    local cached = marker_type_flags[marker_type]
+    if cached ~= nil then
+        return cached
+    end
+
+    local cat
+    if string_find(marker_type, "ping", 1, true) or string_find(marker_type, "threat", 1, true) or string_find(marker_type, "smart_tag", 1, true) then
+        cat = "pings"
+    elseif string_find(marker_type, "nameplate", 1, true) then
+        cat = "nameplates"
+    elseif string_find(marker_type, "interaction", 1, true) then
+        cat = "interactions"
+    elseif string_find(marker_type, "objective", 1, true) then
+        cat = "objectives"
+    else
+        cat = "world_markers"
+    end
+
+    marker_type_flags[marker_type] = cat
+    return cat
+end
+
+local function get_renderer_info(renderer)
+    if not renderer then
+        return nil
+    end
+    local cached = renderer_info_cache[renderer]
+    if cached ~= nil then
+        return cached
+    end
+
+    local name = renderer.name
+    local name_str = type(name) == "string" and string_lower(name) or ""
+    local is_hud = string_find(name_str, "uihud", 1, true) ~= nil
+    local is_chat = string_find(name_str, "chat", 1, true) ~= nil or string_find(name_str, "constant_element", 1, true) ~= nil
+    local is_mission = string_find(name_str, "mission", 1, true) ~= nil
+
+    local info = {
+        is_hud = is_hud,
+        is_chat = is_chat,
+        is_mission = is_mission,
+    }
+    renderer_info_cache[renderer] = info
+    return info
+end
+
 function mod.on_all_mods_loaded()
     update_all_cached_settings()
 
@@ -329,16 +429,16 @@ function mod.on_all_mods_loaded()
         return
     end
 
-    SimpleAssets.load_font("opendyslexic3", "fonts/opendyslexic3.slug"):next(function(res) loaded_fonts.opendyslexic3 = res.resource_name; table.clear(custom_font_cache) end)
-    SimpleAssets.load_font("opendyslexic3_bold", "fonts/opendyslexic3-bold.slug"):next(function(res) loaded_fonts.opendyslexic3_bold = res.resource_name; table.clear(custom_font_cache) end)
+    SimpleAssets.load_font("opendyslexic3", "fonts/opendyslexic3.slug"):next(function(res) loaded_fonts.opendyslexic3 = res.resource_name; table_clear(custom_font_cache) end)
+    SimpleAssets.load_font("opendyslexic3_bold", "fonts/opendyslexic3-bold.slug"):next(function(res) loaded_fonts.opendyslexic3_bold = res.resource_name; table_clear(custom_font_cache) end)
     
-    SimpleAssets.load_font("opendyslexic2", "fonts/opendyslexic2.slug"):next(function(res) loaded_fonts.opendyslexic2 = res.resource_name; table.clear(custom_font_cache) end)
-    SimpleAssets.load_font("opendyslexic2_bold", "fonts/opendyslexic2-bold.slug"):next(function(res) loaded_fonts.opendyslexic2_bold = res.resource_name; table.clear(custom_font_cache) end)
+    SimpleAssets.load_font("opendyslexic2", "fonts/opendyslexic2.slug"):next(function(res) loaded_fonts.opendyslexic2 = res.resource_name; table_clear(custom_font_cache) end)
+    SimpleAssets.load_font("opendyslexic2_bold", "fonts/opendyslexic2-bold.slug"):next(function(res) loaded_fonts.opendyslexic2_bold = res.resource_name; table_clear(custom_font_cache) end)
     
-    SimpleAssets.load_font("opendyslexic", "fonts/opendyslexic.slug"):next(function(res) loaded_fonts.opendyslexic = res.resource_name; table.clear(custom_font_cache) end)
-    SimpleAssets.load_font("opendyslexic_bold", "fonts/opendyslexic-bold.slug"):next(function(res) loaded_fonts.opendyslexic_bold = res.resource_name; table.clear(custom_font_cache) end)
+    SimpleAssets.load_font("opendyslexic", "fonts/opendyslexic.slug"):next(function(res) loaded_fonts.opendyslexic = res.resource_name; table_clear(custom_font_cache) end)
+    SimpleAssets.load_font("opendyslexic_bold", "fonts/opendyslexic-bold.slug"):next(function(res) loaded_fonts.opendyslexic_bold = res.resource_name; table_clear(custom_font_cache) end)
     
-    SimpleAssets.load_font("opendyslexic_mono", "fonts/opendyslexic-mono.slug"):next(function(res) loaded_fonts.opendyslexic_mono = res.resource_name; table.clear(custom_font_cache) end)
+    SimpleAssets.load_font("opendyslexic_mono", "fonts/opendyslexic-mono.slug"):next(function(res) loaded_fonts.opendyslexic_mono = res.resource_name; table_clear(custom_font_cache) end)
 
     local hooked_elements = {}
     local function hook_hud_element(element_class, flag_name)
@@ -378,7 +478,8 @@ function mod.on_all_mods_loaded()
         { name = "HudElementAreaNotificationPopup", file = "scripts/ui/hud/elements/area_notification_popup/hud_element_area_notification_popup", flag = "objectives" },
     }
 
-    for _, entry in ipairs(elements_to_hook) do
+    for i = 1, #elements_to_hook do
+        local entry = elements_to_hook[i]
         if _G[entry.name] then
             hook_hud_element(_G[entry.name], entry.flag)
         else
@@ -409,19 +510,21 @@ function mod.on_all_mods_loaded()
                     local prev_obj = is_drawing_objectives
                     local prev_wm = is_drawing_world_markers
 
-                    if string.find(marker_type, "ping", 1, true) or string.find(marker_type, "threat", 1, true) or string.find(marker_type, "smart_tag", 1, true) then
+                    local cat = get_marker_category(marker_type)
+                    if cat == "pings" then
                         is_drawing_pings = true
-                    elseif string.find(marker_type, "nameplate", 1, true) then
+                    elseif cat == "nameplates" then
                         is_drawing_nameplates = true
-                    elseif string.find(marker_type, "interaction", 1, true) then
+                    elseif cat == "interactions" then
                         is_drawing_interactions = true
-                    elseif string.find(marker_type, "objective", 1, true) then
+                    elseif cat == "objectives" then
                         is_drawing_objectives = true
                     else
                         is_drawing_world_markers = true
                     end
 
-                    for i = 1, #markers do
+                    local num_markers = #markers
+                    for i = 1, num_markers do
                         local marker = markers[i]
                         local draw = marker.draw
                         if draw then
@@ -445,7 +548,7 @@ function mod.on_all_mods_loaded()
 
                             if draw then
                                 local offset = widget.offset
-                                offset[3] = math.min(layer_offset, max_layer)
+                                offset[3] = math_min(layer_offset, max_layer)
                                 layer_offset = layer_offset + layer_inc
 
                                 local previous_alpha_multiplier = widget.alpha_multiplier
@@ -545,63 +648,65 @@ function mod.on_setting_changed(setting_id)
     update_all_cached_settings()
 end
 
-local font_type_cache = {}
-local is_hud_cache = {}
-
 local function get_custom_font_info(font_type)
-    if font_type_cache[font_type] ~= nil then
-        return font_type_cache[font_type]
+    local cached = font_type_cache[font_type]
+    if cached ~= nil then
+        return cached
     end
 
     local is_scalable = false
     local is_bold = false
     local is_mono = false
     local base_name = nil
-    
-    for font, _ in pairs(scalable_fonts) do
-        if string.find(font_type, font, 1, true) then
+
+    for i = 1, num_scalable_fonts do
+        local font = scalable_fonts_list[i]
+        if string_find(font_type, font, 1, true) then
             is_scalable = true
             base_name = font
-            if string.find(font_type, "bold", 1, true) then is_bold = true end
-            if string.find(font_type, "mono", 1, true) then is_mono = true end
+            if string_find(font_type, "bold", 1, true) then is_bold = true end
+            if string_find(font_type, "mono", 1, true) then is_mono = true end
             break
         end
     end
 
     if is_scalable then
-        font_type_cache[font_type] = { is_bold = is_bold, is_mono = is_mono, base_name = base_name }
+        cached = { is_bold = is_bold, is_mono = is_mono, base_name = base_name }
     else
-        font_type_cache[font_type] = false
+        cached = false
     end
-    
-    return font_type_cache[font_type]
+
+    font_type_cache[font_type] = cached
+    return cached
 end
 
 local function get_or_create_custom_font(font_type, loaded_hash)
-    local Managers = _G.Managers
-    if not Managers or not Managers.font then return loaded_hash end
-    local defs = Managers.font._font_definitions
+    local font_manager = Managers.font
+    if not font_manager then return loaded_hash end
+    local defs = font_manager._font_definitions
     if not defs then return loaded_hash end
-    
+
     local custom_font_type = loaded_hash .. "_" .. font_type
     if not defs[custom_font_type] then
         local original_def = defs[font_type]
         local paths = { loaded_hash }
-        local flags = _G.Gui.MultiLine + _G.Gui.FormatDirectives
-        
+        local flags = Gui.MultiLine + Gui.FormatDirectives
+
         if original_def then
             flags = original_def.render_flags or flags
-            if original_def.path then
-                for i = 1, #original_def.path do
-                    if original_def.path[i] ~= loaded_hash then
-                        paths[#paths + 1] = original_def.path[i]
+            local orig_paths = original_def.path
+            if orig_paths then
+                local num_orig_paths = #orig_paths
+                for i = 1, num_orig_paths do
+                    if orig_paths[i] ~= loaded_hash then
+                        paths[#paths + 1] = orig_paths[i]
                     end
                 end
             end
         else
             paths[#paths + 1] = "content/ui/fonts/darktide_custom_regular"
         end
-        
+
         defs[custom_font_type] = { path = paths, render_flags = flags }
     end
     return custom_font_type
@@ -638,31 +743,19 @@ local function resolve_custom_font(font_type)
     return result
 end
 
-local function is_hud(renderer)
-    if not renderer then return false end
-    if is_hud_cache[renderer] ~= nil then
-        return is_hud_cache[renderer]
-    end
-    
-    local name = renderer.name
-    if type(name) == "string" and string.find(name, "UIHud", 1, true) then
-        is_hud_cache[renderer] = true
-    else
-        is_hud_cache[renderer] = false
-    end
-    return is_hud_cache[renderer]
-end
-
 local function process_text_draw(self, text, font_size, font_type)
-    if type(font_type) ~= "string" then 
+    if type(font_type) ~= "string" then
         return font_size, font_type, text
     end
 
-    if not setting_use_font_on_hud and is_hud(self) then
+    local renderer_info = get_renderer_info(self)
+    local is_hud_renderer = renderer_info and renderer_info.is_hud
+
+    if not setting_use_font_on_hud and is_hud_renderer then
         return font_size, font_type, text
     end
 
-    if setting_disable_font_in_chat_input and string.find(font_type, "no_render_flags", 1, true) then
+    if setting_disable_font_in_chat_input and string_find(font_type, "no_render_flags", 1, true) then
         return font_size, font_type, text
     end
 
@@ -672,12 +765,9 @@ local function process_text_draw(self, text, font_size, font_type)
     end
 
     local original_font_size = font_size
-    local current_locale = Managers.localization and Managers.localization:language()
-    local is_cjk_locale = (current_locale == "zh-cn" or current_locale == "zh-tw" or current_locale == "ja" or current_locale == "ko")
 
     if type(font_size) == "number" then
-        if is_cjk_locale and setting_disable_cjk_scaling then
-        else
+        if not (cached_is_cjk_locale and setting_disable_cjk_scaling) then
             if font_size <= 24 then
                 font_size = font_size * setting_small_font_scale
             elseif font_size <= 35 then
@@ -688,38 +778,63 @@ local function process_text_draw(self, text, font_size, font_type)
                 font_size = font_size * setting_huge_font_scale
             end
 
-            if is_hud(self) then
+            if is_hud_renderer then
                 font_size = font_size * setting_hud_font_scale
             end
         end
     end
 
-    if type(text) == "string" and type(font_size) == "number" and type(original_font_size) == "number" and font_size ~= original_font_size then
-        if string.find(text, "\xee", 1, true) or string.find(text, "{#icon", 1, true) then
-            local cache_key = text .. "_" .. tostring(font_size) .. "_" .. tostring(original_font_size)
-            local cached = icon_string_cache[cache_key]
-            if cached then
-                text = cached
+    if font_size ~= original_font_size and type(text) == "string" and type(font_size) == "number" and type(original_font_size) == "number" then
+        local is_clean = clean_text_cache[text]
+        if is_clean == nil then
+            local has_icon = string_find(text, "\xee", 1, true) or string_find(text, "{#icon", 1, true)
+            local has_cjk = setting_disable_cjk_scaling and (string_find(text, "[\xE1-\xED\xEF\xF0]") ~= nil)
+            if not has_icon and not has_cjk then
+                clean_text_cache[text] = true
+                is_clean = true
             else
-                local new_text = string.gsub(text, "(\xee[\x80-\xbf][\x80-\xbf])", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
-                new_text = string.gsub(new_text, "({#icon.-})", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
-                icon_string_cache[cache_key] = new_text
-                text = new_text
+                clean_text_cache[text] = false
+                is_clean = false
             end
         end
 
-        if setting_disable_cjk_scaling and string.find(text, "[\xE1-\xED\xEF\xF0]") then
-            local cache_key = text .. "_" .. tostring(font_size) .. "_" .. tostring(original_font_size)
-            local cached = cjk_string_cache[cache_key]
-            if cached then
-                text = cached
-            else
-                local new_text = string.gsub(text, "([\xE2-\xED][\x80-\xBF][\x80-\xBF]+)", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
-                new_text = string.gsub(new_text, "(\xEF[\xA4-\xBF][\x80-\xBF]+)", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
-                new_text = string.gsub(new_text, "(\xE1[\x84-\x87][\x80-\xBF]+)", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
-                new_text = string.gsub(new_text, "(\xF0[\xA0-\xAA][\x80-\xBF][\x80-\xBF]+)", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
-                cjk_string_cache[cache_key] = new_text
-                text = new_text
+        if not is_clean then
+            if string_find(text, "\xee", 1, true) or string_find(text, "{#icon", 1, true) then
+                local icon_cache_by_size = icon_string_cache[font_size]
+                if not icon_cache_by_size then
+                    icon_cache_by_size = {}
+                    icon_string_cache[font_size] = icon_cache_by_size
+                end
+
+                local cached = icon_cache_by_size[text]
+                if cached then
+                    text = cached
+                else
+                    local new_text = string_gsub(text, "(\xee[\x80-\xbf][\x80-\xbf])", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
+                    new_text = string_gsub(new_text, "({#icon.-})", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
+                    icon_cache_by_size[text] = new_text
+                    text = new_text
+                end
+            end
+
+            if setting_disable_cjk_scaling and string_find(text, "[\xE1-\xED\xEF\xF0]") then
+                local cjk_cache_by_size = cjk_string_cache[font_size]
+                if not cjk_cache_by_size then
+                    cjk_cache_by_size = {}
+                    cjk_string_cache[font_size] = cjk_cache_by_size
+                end
+
+                local cached = cjk_cache_by_size[text]
+                if cached then
+                    text = cached
+                else
+                    local new_text = string_gsub(text, "([\xE2-\xED][\x80-\xBF][\x80-\xBF]+)", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
+                    new_text = string_gsub(new_text, "(\xEF[\xA4-\xBF][\x80-\xBF]+)", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
+                    new_text = string_gsub(new_text, "(\xE1[\x84-\x87][\x80-\xBF]+)", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
+                    new_text = string_gsub(new_text, "(\xF0[\xA0-\xAA][\x80-\xBF][\x80-\xBF]+)", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
+                    cjk_cache_by_size[text] = new_text
+                    text = new_text
+                end
             end
         end
     end
@@ -731,18 +846,13 @@ local ext_options = {}
 local rect_options = {}
 
 local function draw_text_background(self, text, font_size, font_type, gui_position, gui_size, color, options)
-    if not setting_enable_high_contrast_bg then
+    local renderer_info = get_renderer_info(self)
+
+    if renderer_info and renderer_info.is_chat and not setting_high_contrast_on_chat then
         return
     end
 
-    local renderer_name = self.name and type(self.name) == "string" and string.lower(self.name) or ""
-    local is_chat = string.find(renderer_name, "chat", 1, true) or string.find(renderer_name, "constant_element", 1, true)
-    
-    if is_chat and not setting_high_contrast_on_chat then
-        return
-    end
-
-    if not setting_high_contrast_on_hud and is_hud(self) then
+    if not setting_high_contrast_on_hud and renderer_info and renderer_info.is_hud then
         local is_allowed = (setting_high_contrast_on_killfeed and is_drawing_feed) or
                            (setting_high_contrast_on_world_markers and is_drawing_world_markers) or
                            (setting_high_contrast_on_pings and is_drawing_pings) or
@@ -754,19 +864,14 @@ local function draw_text_background(self, text, font_size, font_type, gui_positi
         end
     end
 
-    if string.find(renderer_name, "mission", 1, true) then
+    if renderer_info and renderer_info.is_mission then
         local is_banner = false
-        if Managers and Managers.localization then
-            local maelstrom_text = Managers.localization:localize("loc_mission_board_maelstrom_header")
-            local event_text = Managers.localization:localize("loc_mission_board_mission_category_event")
-            if (maelstrom_text and string.find(text, maelstrom_text, 1, true)) or 
-               (event_text and string.find(text, event_text, 1, true)) then
-                is_banner = true
-            end
-        end
-        if not is_banner then
-            local lower_text = string.lower(text)
-            if string.find(lower_text, "maelstrom", 1, true) or string.find(lower_text, "event", 1, true) then
+        if (cached_maelstrom_header and string_find(text, cached_maelstrom_header, 1, true)) or 
+           (cached_event_header and string_find(text, cached_event_header, 1, true)) then
+            is_banner = true
+        else
+            local lower_text = string_lower(text)
+            if string_find(lower_text, "maelstrom", 1, true) or string_find(lower_text, "event", 1, true) then
                 is_banner = true
             end
         end
@@ -776,7 +881,7 @@ local function draw_text_background(self, text, font_size, font_type, gui_positi
         end
     end
 
-    if not text or type(text) ~= "string" or text == "" or not string.find(text, "%S") or not gui_position then
+    if not text or type(text) ~= "string" or text == "" or not string_find(text, "%S") or not gui_position then
         return
     end
 
@@ -800,7 +905,7 @@ local function draw_text_background(self, text, font_size, font_type, gui_positi
         flags = flags + Gui.RenderPass
     end
 
-    table.clear(ext_options)
+    table_clear(ext_options)
     ext_options.flags = flags
     if options then
         ext_options.horizontal_alignment = options.horizontal_alignment
@@ -830,7 +935,7 @@ local function draw_text_background(self, text, font_size, font_type, gui_positi
     local start_layer = (render_settings and render_settings.start_layer) or 0
     local z = (gui_position[3] or 0) + start_layer - 0.01
 
-    local box_pos = Vector3(gui_position[1] + min.x - pad_x, gui_position[2] + min.y - pad_y, math.max(z, 0))
+    local box_pos = Vector3(gui_position[1] + min.x - pad_x, gui_position[2] + min.y - pad_y, math_max(z, 0))
     local box_sz = Vector2(text_w + (pad_x * 2), text_h + (pad_y * 2))
 
     local opacity = setting_high_contrast_opacity
@@ -840,18 +945,20 @@ local function draw_text_background(self, text, font_size, font_type, gui_positi
     if render_settings and render_settings.material_flags then
         material_flags = render_settings.material_flags
     end
-    if bit.band(flags, Gui.Masked) == Gui.Masked and GuiMaterialFlag then
-        material_flags = bit.bor(material_flags, GuiMaterialFlag.GUI_MASK_LAYER)
+    if bit_band(flags, Gui.Masked) == Gui.Masked and GuiMaterialFlag then
+        material_flags = bit_bor(material_flags, GuiMaterialFlag.GUI_MASK_LAYER)
     end
     if self.render_pass_flag and GuiMaterialFlag then
-        material_flags = bit.bor(material_flags, GuiMaterialFlag.GUI_RENDER_PASS_LAYER)
+        material_flags = bit_bor(material_flags, GuiMaterialFlag.GUI_RENDER_PASS_LAYER)
     end
 
-    table.clear(rect_options)
+    table_clear(rect_options)
     rect_options.color = Color(opacity * alpha_mult, 0, 0, 0)
     rect_options.snap_pixel_positions = (render_settings and render_settings.snap_pixel_positions) ~= false
-    rect_options.flags = flags
-    rect_options.material_flags = material_flags
+
+    if material_flags and material_flags ~= 0 then
+        rect_options.material_flags = material_flags
+    end
 
     local render_pass = self.base_render_pass
     if render_pass and render_settings and render_settings.hdr then
@@ -864,7 +971,9 @@ end
 
 mod:hook(UIRenderer, "script_draw_text", function(func, self, text, font_size, font_type, gui_position, gui_size, color, options, retained_id, ...)
     local final_size, final_font, final_text = process_text_draw(self, text, font_size, font_type)
-    draw_text_background(self, final_text, final_size, final_font, gui_position, gui_size, color, options)
+    if setting_enable_high_contrast_bg then
+        draw_text_background(self, final_text, final_size, final_font, gui_position, gui_size, color, options)
+    end
     return func(self, final_text, final_size, final_font, gui_position, gui_size, color, options, retained_id, ...)
 end)
 
