@@ -47,9 +47,9 @@ local setting_disable_font_in_chat_input = false
 local setting_disable_cjk_scaling = true
 
 local setting_enable_high_contrast_bg = false
-local setting_high_contrast_opacity = 230
+local setting_high_contrast_opacity = 200
 local setting_high_contrast_padding_x = 10
-local setting_high_contrast_padding_y = 2
+local setting_high_contrast_padding_y = 8
 local setting_high_contrast_on_hud = false
 local setting_high_contrast_on_chat = true
 local setting_high_contrast_on_killfeed = true
@@ -91,9 +91,9 @@ local function update_all_cached_settings()
     setting_disable_cjk_scaling = (cjk_scale_val == nil) and true or not not cjk_scale_val
 
     setting_enable_high_contrast_bg = not not mod:get("enable_high_contrast_bg")
-    setting_high_contrast_opacity = mod:get("high_contrast_opacity") or 230
+    setting_high_contrast_opacity = mod:get("high_contrast_opacity") or 200
     setting_high_contrast_padding_x = mod:get("high_contrast_padding_x") or 10
-    setting_high_contrast_padding_y = mod:get("high_contrast_padding_y") or 2
+    setting_high_contrast_padding_y = mod:get("high_contrast_padding_y") or 8
 
     local hc_hud_val = mod:get("high_contrast_on_hud")
     setting_high_contrast_on_hud = (hc_hud_val == nil) and false or not not hc_hud_val
@@ -520,13 +520,19 @@ local previous_font = mod:get("font_version") or "opendyslexic3"
 function mod.on_setting_changed(setting_id)
     if setting_id == "font_version" then
         local new_font = mod:get("font_version")
-        if new_font == "default" and previous_font ~= "default" then
+        if new_font == "default" then
             mod:set("hud_font_scale", 100)
             mod:set("small_font_scale", 100)
             mod:set("medium_font_scale", 100)
             mod:set("large_font_scale", 100)
             mod:set("huge_font_scale", 100)
-        elseif new_font ~= "default" and previous_font == "default" then
+        elseif new_font == "opendyslexic" then
+            mod:set("hud_font_scale", 100)
+            mod:set("small_font_scale", 72)
+            mod:set("medium_font_scale", 72)
+            mod:set("large_font_scale", 72)
+            mod:set("huge_font_scale", 72)
+        elseif new_font == "opendyslexic3" or new_font == "opendyslexic2" then
             mod:set("hud_font_scale", 100)
             mod:set("small_font_scale", 80)
             mod:set("medium_font_scale", 80)
