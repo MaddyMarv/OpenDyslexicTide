@@ -46,6 +46,18 @@ return {
     group_font_settings = {
         en = "Font Configuration",
     },
+    disable_font_in_chat_input = {
+        en = "Disable Font in Chat Input",
+    },
+    disable_font_in_chat_input_description = {
+        en = "Keeps the game's default font and size in the chat typing field.",
+    },
+    disable_cjk_scaling = {
+        en = "Full Scale for CJK Glyphs",
+    },
+    disable_cjk_scaling_description = {
+        en = "Prevents Chinese, Japanese, and Korean characters from shrinking when font scale reduction is active.",
+    },
     tab_high_contrast = {
         en = "High Contrast",
     },
@@ -81,6 +93,12 @@ return {
     },
     high_contrast_on_hud_description = {
         en = "Renders background boxes behind general HUD text (ability icons, stamina, weapon counters, health/toughness meters).",
+    },
+    high_contrast_on_chat = {
+        en = "Always on Chat Messages",
+    },
+    high_contrast_on_chat_description = {
+        en = "Always renders background boxes behind chat messages, even when General HUD is disabled.",
     },
     high_contrast_on_killfeed = {
         en = "Always on Killfeed",

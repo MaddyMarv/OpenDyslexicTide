@@ -43,12 +43,15 @@ local setting_small_font_scale = 0.8
 local setting_medium_font_scale = 0.8
 local setting_large_font_scale = 0.85
 local setting_huge_font_scale = 0.85
+local setting_disable_font_in_chat_input = false
+local setting_disable_cjk_scaling = true
 
 local setting_enable_high_contrast_bg = false
 local setting_high_contrast_opacity = 230
 local setting_high_contrast_padding_x = 10
 local setting_high_contrast_padding_y = 2
 local setting_high_contrast_on_hud = false
+local setting_high_contrast_on_chat = true
 local setting_high_contrast_on_killfeed = true
 local setting_high_contrast_on_world_markers = true
 local setting_high_contrast_on_pings = true
@@ -63,6 +66,8 @@ local is_drawing_nameplates = false
 local is_drawing_interactions = false
 local is_drawing_objectives = false
 local custom_font_cache = {}
+local icon_string_cache = {}
+local cjk_string_cache = {}
 
 local function update_all_cached_settings()
     local ver = mod:get("font_version") or "opendyslexic3"
@@ -79,6 +84,12 @@ local function update_all_cached_settings()
     setting_large_font_scale = (mod:get("large_font_scale") or 85) / 100
     setting_huge_font_scale = (mod:get("huge_font_scale") or 85) / 100
 
+    local chat_font_val = mod:get("disable_font_in_chat_input")
+    setting_disable_font_in_chat_input = not not chat_font_val
+
+    local cjk_scale_val = mod:get("disable_cjk_scaling")
+    setting_disable_cjk_scaling = (cjk_scale_val == nil) and true or not not cjk_scale_val
+
     setting_enable_high_contrast_bg = not not mod:get("enable_high_contrast_bg")
     setting_high_contrast_opacity = mod:get("high_contrast_opacity") or 230
     setting_high_contrast_padding_x = mod:get("high_contrast_padding_x") or 10
@@ -86,6 +97,9 @@ local function update_all_cached_settings()
 
     local hc_hud_val = mod:get("high_contrast_on_hud")
     setting_high_contrast_on_hud = (hc_hud_val == nil) and false or not not hc_hud_val
+
+    local hc_chat_val = mod:get("high_contrast_on_chat")
+    setting_high_contrast_on_chat = (hc_chat_val == nil) and true or not not hc_chat_val
 
     local hc_kf_val = mod:get("high_contrast_on_killfeed")
     setting_high_contrast_on_killfeed = (hc_kf_val == nil) and true or not not hc_kf_val
@@ -106,6 +120,205 @@ local function update_all_cached_settings()
     setting_high_contrast_on_objectives = (hc_obj_val == nil) and true or not not hc_obj_val
 
     table.clear(custom_font_cache)
+    table.clear(icon_string_cache)
+    table.clear(cjk_string_cache)
+end
+
+local function _custom_crop_text_width(ui_renderer, text, max_width, last_start_position, caret_position, font_type, font_size)
+    text = text or ""
+    max_width = max_width > 0 and max_width or 0
+
+    local original_text_length = Utf8.string_length(text)
+    caret_position = caret_position or original_text_length + 1
+
+    local prefix = ""
+    local suffix = ""
+    local start_index = 1
+    local cropped_text = text
+    local _ellipsis = "…"
+    local _ellipsis_length = Utf8.string_length(_ellipsis)
+    
+    local _1, _2, _3, caret_offset = UIRenderer.text_size(ui_renderer, text, font_type, font_size)
+    local ellipsis_width, _2, _3, ellipsis_caret = UIRenderer.text_size(ui_renderer, _ellipsis, font_type, font_size)
+    local actual_text_width = caret_offset and caret_offset[1] or 0
+
+    if actual_text_width > 0 and max_width < actual_text_width then
+        start_index = last_start_position or start_index
+
+        if caret_position <= start_index then
+            start_index = math.max(caret_position - 1, 1)
+        end
+
+        if start_index > 1 then
+            prefix = _ellipsis
+        end
+
+        repeat
+            local width_percent = 1 - (1 - (max_width - ellipsis_width) / actual_text_width) * 0.5
+            local num_char = Utf8.string_length(cropped_text)
+            local number_of_characters_to_show = math.floor(num_char * width_percent)
+            local last_index = start_index + number_of_characters_to_show - 1
+
+            if original_text_length < last_index then
+                last_index = original_text_length
+            elseif last_index < caret_position - 1 then
+                last_index = caret_position - 1
+                start_index = last_index - number_of_characters_to_show + 1
+            end
+
+            if start_index > 1 then
+                prefix = _ellipsis
+            else
+                prefix = ""
+            end
+
+            if last_index < original_text_length then
+                suffix = _ellipsis
+            else
+                suffix = ""
+            end
+
+            cropped_text = Utf8.sub_string(text, start_index, last_index)
+            _1, _2, _3, caret_offset = UIRenderer.text_size(ui_renderer, prefix .. cropped_text .. suffix, font_type, font_size)
+            actual_text_width = caret_offset and math.floor(caret_offset[1]) or 0
+        until actual_text_width <= max_width
+
+        cropped_text = prefix .. cropped_text .. suffix
+    end
+
+    if caret_position <= original_text_length then
+        local num_chars_before_caret_pos = caret_position - start_index
+
+        if prefix == _ellipsis then
+            num_chars_before_caret_pos = num_chars_before_caret_pos + _ellipsis_length
+        end
+
+        local text_til_caret_pos = Utf8.sub_string(cropped_text, 1, num_chars_before_caret_pos)
+        _1, _2, _3, caret_offset = UIRenderer.text_size(ui_renderer, text_til_caret_pos, font_type, font_size)
+    end
+
+    return cropped_text, (caret_offset and caret_offset[1] or 0), start_index
+end
+
+local function _custom_caret_logic_pass(pass, ui_renderer, ui_style, content, position, size)
+    local old_input_text = content._input_text
+    local new_input_text = content.input_text
+    local old_active_placeholder_text = content._active_placeholder_text
+    local new_active_placeholder_text = content.active_placeholder_text
+    local old_caret_position = content._caret_position
+    local new_caret_position = content.caret_position
+    local force_caret_update = content.force_caret_update
+    local is_text_box = content.is_text_box
+    local text_has_changed = new_input_text ~= old_input_text
+    local placeholder_text_has_changed = new_active_placeholder_text ~= old_active_placeholder_text
+    local caret_position_has_changed = new_caret_position ~= old_caret_position
+    local text_length = new_input_text and Utf8.string_length(new_input_text) or 0
+
+    if not text_has_changed and not placeholder_text_has_changed and not caret_position_has_changed and not force_caret_update then
+        return
+    elseif content.max_length and text_length > content.max_length then
+        content.input_text = old_input_text
+        return
+    end
+
+    new_caret_position = new_caret_position and math.clamp(new_caret_position, 1, text_length + 1)
+
+    local display_text_style = ui_style.parent.display_text
+    local caret_style = ui_style.parent.input_caret
+    local max_text_width = size[1] - 1
+
+    if display_text_style.size_addition then
+        max_text_width = max_text_width + display_text_style.size_addition[1]
+    end
+
+    local display_text, caret_offset, first_pos = _custom_crop_text_width(ui_renderer, new_input_text, max_text_width, content._input_text_first_visible_pos, new_caret_position, display_text_style.font_type, display_text_style.font_size)
+
+    if is_text_box then
+        caret_offset = caret_offset % (size[1] - 1)
+    end
+
+    content.caret_position = new_caret_position
+    content._input_text = new_input_text
+    content.display_text = display_text
+    content._caret_position = new_caret_position
+    content._input_text_first_visible_pos = first_pos
+    content._active_placeholder_text = new_active_placeholder_text
+    content.force_caret_update = nil
+    caret_style.offset[1] = display_text_style.offset[1] + caret_offset
+end
+
+local function _custom_selection_logic_pass(pass, ui_renderer, ui_style, content, position, size)
+    if not content._selection_changed then
+        return
+    end
+
+    content._selection_changed = nil
+
+    local selection_start = content._selection_start
+    local selection_end = content._selection_end
+    local display_text = content.display_text
+    local display_text_style = ui_style.parent.display_text
+    local first_visible_character_pos = content._input_text_first_visible_pos or 1
+    local _ellipsis = "…"
+    local _ellipsis_length = Utf8.string_length(_ellipsis)
+
+    if first_visible_character_pos > 1 then
+        local offset = first_visible_character_pos - _ellipsis_length - 1
+        selection_start = math.max(selection_start - offset, 1)
+        selection_end = selection_end - offset
+    end
+
+    local text_up_to_selection_start = Utf8.sub_string(display_text, 1, selection_start - 1)
+    local _1, _2, _3, select_start_offset = UIRenderer.text_size(ui_renderer, text_up_to_selection_start, display_text_style.font_type, display_text_style.font_size)
+    local last_visible_character_pos = Utf8.string_length(display_text) + first_visible_character_pos
+
+    if last_visible_character_pos < selection_end then
+        selection_end = last_visible_character_pos
+    end
+
+    local visibly_selected_text = Utf8.sub_string(display_text, selection_start, selection_end - 1)
+    local _1, _2, _3, selection_width = UIRenderer.text_size(ui_renderer, visibly_selected_text, display_text_style.font_type, display_text_style.font_size)
+    local selection_style = ui_style.parent.selection
+    local selection_offset = selection_style.offset or {}
+    local selection_size = selection_style.size or {}
+
+    selection_offset[1] = display_text_style.offset[1] + (select_start_offset and select_start_offset[1] or 0)
+    selection_size[1] = selection_width and selection_width[1] or 0
+    selection_style.offset = selection_offset
+    selection_style.size = selection_size
+end
+
+local function patch_text_input_templates(TextInputPassTemplates)
+    if not TextInputPassTemplates then
+        local success, t = pcall(require, "scripts/ui/pass_templates/text_input_pass_templates")
+        if success then TextInputPassTemplates = t end
+    end
+    if TextInputPassTemplates then
+        local templates = {
+            TextInputPassTemplates.chat_input_field,
+            TextInputPassTemplates.simple_input_field,
+            TextInputPassTemplates.simple_input_box,
+            TextInputPassTemplates.terminal_input_field,
+        }
+        for _, template in ipairs(templates) do
+            if type(template) == "table" then
+                if template[4] and template[4].pass_type == "logic" then
+                    template[4].value = _custom_caret_logic_pass
+                end
+                if template[5] and template[5].pass_type == "logic" then
+                    template[5].value = _custom_selection_logic_pass
+                end
+            end
+        end
+    end
+
+    local constant_elements = Managers.ui and Managers.ui:ui_constant_elements()
+    local chat = constant_elements and constant_elements._elements and constant_elements._elements.ConstantElementChat
+    if chat and chat._input_field_widget and chat._input_field_widget.content then
+        chat._input_field_widget.content.value_id_4 = _custom_caret_logic_pass
+        chat._input_field_widget.content.value_id_5 = _custom_selection_logic_pass
+        chat._input_field_widget.content.force_caret_update = true
+    end
 end
 
 function mod.on_all_mods_loaded()
@@ -258,6 +471,28 @@ function mod.on_all_mods_loaded()
     else
         mod:hook_require("scripts/ui/hud/elements/world_markers/hud_element_world_markers", hook_world_markers_manager)
     end
+
+    patch_text_input_templates()
+    mod:hook_require("scripts/ui/pass_templates/text_input_pass_templates", function(templates)
+        patch_text_input_templates(templates)
+    end)
+
+    local function hook_chat_init(cls)
+        if cls then
+            mod:hook_safe(cls, "init", function(self)
+                if self._input_field_widget and self._input_field_widget.content then
+                    self._input_field_widget.content.value_id_4 = _custom_caret_logic_pass
+                    self._input_field_widget.content.value_id_5 = _custom_selection_logic_pass
+                end
+            end)
+        end
+    end
+
+    if _G.ConstantElementChat then
+        hook_chat_init(_G.ConstantElementChat)
+    else
+        mod:hook_require("scripts/ui/constant_elements/elements/chat/constant_element_chat", hook_chat_init)
+    end
 end
 
 local previous_font = mod:get("font_version") or "opendyslexic3"
@@ -392,8 +627,6 @@ local function is_hud(renderer)
     return is_hud_cache[renderer]
 end
 
-local icon_string_cache = {}
-
 local function process_text_draw(self, text, font_size, font_type)
     if type(font_type) ~= "string" then 
         return font_size, font_type, text
@@ -403,25 +636,35 @@ local function process_text_draw(self, text, font_size, font_type)
         return font_size, font_type, text
     end
 
+    if setting_disable_font_in_chat_input and string.find(font_type, "no_render_flags", 1, true) then
+        return font_size, font_type, text
+    end
+
     local custom_font_type = resolve_custom_font(font_type)
     if custom_font_type == false then
         return font_size, font_type, text
     end
 
     local original_font_size = font_size
-    if type(font_size) == "number" then
-        if font_size <= 24 then
-            font_size = font_size * setting_small_font_scale
-        elseif font_size <= 35 then
-            font_size = font_size * setting_medium_font_scale
-        elseif font_size <= 50 then
-            font_size = font_size * setting_large_font_scale
-        else
-            font_size = font_size * setting_huge_font_scale
-        end
+    local current_locale = Managers.localization and Managers.localization:language()
+    local is_cjk_locale = (current_locale == "zh-cn" or current_locale == "zh-tw" or current_locale == "ja" or current_locale == "ko")
 
-        if is_hud(self) then
-            font_size = font_size * setting_hud_font_scale
+    if type(font_size) == "number" then
+        if is_cjk_locale and setting_disable_cjk_scaling then
+        else
+            if font_size <= 24 then
+                font_size = font_size * setting_small_font_scale
+            elseif font_size <= 35 then
+                font_size = font_size * setting_medium_font_scale
+            elseif font_size <= 50 then
+                font_size = font_size * setting_large_font_scale
+            else
+                font_size = font_size * setting_huge_font_scale
+            end
+
+            if is_hud(self) then
+                font_size = font_size * setting_hud_font_scale
+            end
         end
     end
 
@@ -438,6 +681,21 @@ local function process_text_draw(self, text, font_size, font_type)
                 text = new_text
             end
         end
+
+        if setting_disable_cjk_scaling and string.find(text, "[\xE1-\xED\xEF\xF0]") then
+            local cache_key = text .. "_" .. tostring(font_size) .. "_" .. tostring(original_font_size)
+            local cached = cjk_string_cache[cache_key]
+            if cached then
+                text = cached
+            else
+                local new_text = string.gsub(text, "([\xE2-\xED][\x80-\xBF][\x80-\xBF]+)", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
+                new_text = string.gsub(new_text, "(\xEF[\xA4-\xBF][\x80-\xBF]+)", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
+                new_text = string.gsub(new_text, "(\xE1[\x84-\x87][\x80-\xBF]+)", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
+                new_text = string.gsub(new_text, "(\xF0[\xA0-\xAA][\x80-\xBF][\x80-\xBF]+)", "{#size(" .. original_font_size .. ")}%1{#size(" .. font_size .. ")}")
+                cjk_string_cache[cache_key] = new_text
+                text = new_text
+            end
+        end
     end
 
     return font_size, custom_font_type, text
@@ -448,6 +706,13 @@ local rect_options = {}
 
 local function draw_text_background(self, text, font_size, font_type, gui_position, gui_size, color, options)
     if not setting_enable_high_contrast_bg then
+        return
+    end
+
+    local renderer_name = self.name and type(self.name) == "string" and string.lower(self.name) or ""
+    local is_chat = string.find(renderer_name, "chat", 1, true) or string.find(renderer_name, "constant_element", 1, true)
+    
+    if is_chat and not setting_high_contrast_on_chat then
         return
     end
 
@@ -463,7 +728,6 @@ local function draw_text_background(self, text, font_size, font_type, gui_positi
         end
     end
 
-    local renderer_name = self.name and type(self.name) == "string" and string.lower(self.name) or ""
     if string.find(renderer_name, "mission", 1, true) then
         local is_banner = false
         if Managers and Managers.localization then
@@ -522,7 +786,8 @@ local function draw_text_background(self, text, font_size, font_type, gui_positi
         ext_options.optional_size = Vector2(gui_size[1], gui_size[2])
     end
 
-    local min, max = Gui2.slug_text_max_extents(gui, text, font_path, font_size, ext_options)
+    local extents_func = Gui2.slug_text_extents or Gui.slug_text_extents or Gui2.slug_text_max_extents
+    local min, max = extents_func(gui, text, font_path, font_size, ext_options)
     if not min or not max then
         return
     end

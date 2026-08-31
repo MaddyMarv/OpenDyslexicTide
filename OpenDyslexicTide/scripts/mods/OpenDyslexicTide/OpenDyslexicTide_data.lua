@@ -67,6 +67,16 @@ return {
                         decimals_number = 0,
                         step_size_value = 5,
                     },
+                    {
+                        setting_id = "disable_font_in_chat_input",
+                        type = "checkbox",
+                        default_value = false,
+                    },
+                    {
+                        setting_id = "disable_cjk_scaling",
+                        type = "checkbox",
+                        default_value = true,
+                    },
                 },
             },
             {
@@ -107,6 +117,11 @@ return {
                         setting_id = "high_contrast_on_hud",
                         type = "checkbox",
                         default_value = false,
+                    },
+                    {
+                        setting_id = "high_contrast_on_chat",
+                        type = "checkbox",
+                        default_value = true,
                     },
                     {
                         setting_id = "high_contrast_on_killfeed",
