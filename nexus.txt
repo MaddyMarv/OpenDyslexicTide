@@ -16,4 +16,5 @@ Standalone accessibility mod that replaces in-game text fonts with OpenDyslexic,
 - Padding (Horizontal & Vertical)
 - Box Placement (General HUD, Chat Messages, Killfeed, World Markers, Pings, Nameplates, Interactions, Objectives)
 
-[b]Links:[/b] [url=https://github.com/MaddyMarv/OpenDyslexicTide]Source Code[/url] | [url=https://www.nexusmods.com/profile/indicabunny]Nexus Mods Profile[/url] | [url=https://ko-fi.com/indicabunny]Support Me on Ko-fi[/url]
+[b]Links:[/b]
+[url=https://github.com/MaddyMarv/OpenDyslexicTide]Source Code[/url] | [url=https://www.nexusmods.com/profile/indicabunny]Nexus Mods Profile[/url] | [url=https://ko-fi.com/indicabunny]Support Me on Ko-fi[/url]
