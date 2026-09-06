@@ -1,0 +1,19 @@
+Standalone accessibility mod that replaces in-game text fonts with OpenDyslexic, designed to increase readability and reduce reading errors.
+
+[b]Options:[/b]
+
+[b]Font Settings[/b]
+- Font Version [Default (Game Font), OpenDyslexic Regular, OpenDyslexic Version 2, OpenDyslexic Version 3]
+- Use Font on HUD
+- HUD Specific Scale (Multiplier)
+- Text Scaling by Font Size (Small, Medium, Large, Huge)
+- Disable Font in Chat Input
+- Full Scale for CJK Glyphs
+
+[b]High Contrast[/b]
+- Enable Text Background Boxes
+- Box Opacity (0 - 255)
+- Padding (Horizontal & Vertical)
+- Box Placement (General HUD, Chat Messages, Killfeed, World Markers, Pings, Nameplates, Interactions, Objectives)
+
+[b]Links:[/b] [url=https://github.com/MaddyMarv/OpenDyslexicTide]Source Code[/url] | [url=https://www.nexusmods.com/profile/indicabunny]Nexus Mods Profile[/url] | [url=https://ko-fi.com/indicabunny]Support Me on Ko-fi[/url]
