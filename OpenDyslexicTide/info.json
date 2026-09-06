@@ -2,7 +2,7 @@
     "name": "OpenDyslexicTide",
     "author": "IndicaBunny",
     "version": "1.0.0",
-    "description": "Replaces in game fonts with OpenDyslexic.",
+    "description": "Replaces in-game fonts with OpenDyslexic.",
     "order": {
         "require": [
             "SimpleAssets"
