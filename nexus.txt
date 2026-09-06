@@ -1,4 +1,4 @@
-Standalone accessibility mod that replaces in-game text fonts with OpenDyslexic, designed to increase readability and reduce reading errors.
+Replaces in-game fonts with OpenDyslexic.
 
 [b]Options:[/b]
 

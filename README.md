@@ -1,7 +1,7 @@
 ### [OpenDyslexicTide](https://www.nexusmods.com/warhammer40kdarktide/mods/1109)
 <img width="1214" height="683" alt="image" src="https://github.com/user-attachments/assets/6cfc44d5-c986-4369-94d5-b129180ac932" />
 
-Standalone accessibility mod that replaces in-game text fonts with OpenDyslexic, designed to increase readability and reduce reading errors.
+Replaces in-game fonts with OpenDyslexic.
 
 **Options:**
 
