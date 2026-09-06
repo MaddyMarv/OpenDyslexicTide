@@ -1,4 +1,4 @@
-Replaces in-game fonts with OpenDyslexic.
+Replaces in game fonts with OpenDyslexic.
 
 [b]Options:[/b]
 

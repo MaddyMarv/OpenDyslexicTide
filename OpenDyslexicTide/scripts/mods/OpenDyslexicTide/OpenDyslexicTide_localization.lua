@@ -5,7 +5,7 @@ return {
         en = "OpenDyslexicTide",
     },
     mod_description = {
-        en = "Replaces the game's default fonts with OpenDyslexic.",
+        en = "Replaces in game fonts with OpenDyslexic.",
     },
     font_version = {
         en = "Font Version",
