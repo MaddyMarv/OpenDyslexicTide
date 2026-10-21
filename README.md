@@ -3,7 +3,8 @@
 
 Replaces in-game fonts with OpenDyslexic.
 
-**Options:**
+<details>
+<summary><b>Mod Settings / Commands</b></summary>
 
 **Font Settings**
 - Font Version [Default (Game Font), OpenDyslexic Regular, OpenDyslexic Version 2, OpenDyslexic Version 3]
@@ -18,5 +19,6 @@ Replaces in-game fonts with OpenDyslexic.
 - Box Opacity (0 - 255)
 - Padding (Horizontal & Vertical)
 - Box Placement (General HUD, Chat Messages, Killfeed, World Markers, Pings, Nameplates, Interactions, Objectives)
+</details>
 
 🔗 **Links:** [Source Code](https://github.com/MaddyMarv/OpenDyslexicTide) | [Nexus Mods Profile](https://www.nexusmods.com/profile/indicabunny) | [Support Me on Ko-fi](https://ko-fi.com/indicabunny)
