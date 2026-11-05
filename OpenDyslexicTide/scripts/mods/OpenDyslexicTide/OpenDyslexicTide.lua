@@ -46,6 +46,53 @@ local scalable_fonts_list = {
 }
 local num_scalable_fonts = #scalable_fonts_list
 
+local font_size_corrections = {
+    opendyslexic3 = {
+        proxima_nova_bold = 1,
+        proxima_nova_medium = 0.97,
+        proxima_nova_light = 0.96,
+        machine_medium = 0.78,
+        itc_novarese_bold = 1,
+        itc_novarese_medium = 0.97,
+        friz_quadrata = 1.03,
+        arial = 0.97,
+        mono_tide_regular = 1.1,
+        mono_tide_medium = 1.1,
+        mono_tide_light = 1.09,
+        mono_tide_bold = 1.13,
+    },
+    opendyslexic2 = {
+        proxima_nova_bold = 1.22,
+        proxima_nova_medium = 1.18,
+        proxima_nova_light = 1.16,
+        machine_medium = 0.94,
+        itc_novarese_bold = 1.22,
+        itc_novarese_medium = 1.18,
+        friz_quadrata = 1.24,
+        arial = 1.18,
+        mono_tide_regular = 1.1,
+        mono_tide_medium = 1.1,
+        mono_tide_light = 1.09,
+        mono_tide_bold = 1.13,
+    },
+    opendyslexic = {
+        proxima_nova_bold = 0.89,
+        proxima_nova_medium = 0.9,
+        proxima_nova_light = 0.89,
+        machine_medium = 0.72,
+        itc_novarese_bold = 0.89,
+        itc_novarese_medium = 0.91,
+        friz_quadrata = 0.95,
+        arial = 0.9,
+        mono_tide_regular = 1.1,
+        mono_tide_medium = 1.1,
+        mono_tide_light = 1.09,
+        mono_tide_bold = 1.13,
+    },
+}
+local no_font_size_corrections = {}
+local active_font_size_corrections = no_font_size_corrections
+
 local loaded_fonts = {
     opendyslexic3 = nil,
     opendyslexic3_bold = nil,
@@ -123,6 +170,7 @@ local function update_all_cached_settings()
     active_font = ver
     active_font_bold = (ver == "default") and "default" or (ver .. "_bold")
     active_font_mono = (ver == "default") and "default" or "opendyslexic_mono"
+    active_font_size_corrections = font_size_corrections[ver] or no_font_size_corrections
 
     local hud_val = mod:get("use_font_on_hud")
     setting_use_font_on_hud = (hud_val == nil) and true or not not hud_val
@@ -460,7 +508,32 @@ end
 local hook_hud_studio_text
 local clear_retained_boxes
 
+local function set_opendyslexic_slider_defaults()
+    mod:set("hud_font_scale", 100)
+    mod:set("small_font_scale", 80)
+    mod:set("medium_font_scale", 80)
+    mod:set("large_font_scale", 85)
+    mod:set("huge_font_scale", 85)
+end
+
+local function migrate_regular_font_sliders()
+    if mod:get("regular_font_sliders_migrated") then
+        return
+    end
+
+    mod:set("regular_font_sliders_migrated", true)
+
+    if mod:get("font_version") == "opendyslexic"
+        and mod:get("small_font_scale") == 72
+        and mod:get("medium_font_scale") == 72
+        and mod:get("large_font_scale") == 72
+        and mod:get("huge_font_scale") == 72 then
+        set_opendyslexic_slider_defaults()
+    end
+end
+
 function mod.on_all_mods_loaded()
+    migrate_regular_font_sliders()
     update_all_cached_settings()
 
     local SimpleAssets = get_mod("SimpleAssets")
@@ -708,18 +781,8 @@ function mod.on_setting_changed(setting_id)
             mod:set("medium_font_scale", 100)
             mod:set("large_font_scale", 100)
             mod:set("huge_font_scale", 100)
-        elseif new_font == "opendyslexic" then
-            mod:set("hud_font_scale", 100)
-            mod:set("small_font_scale", 72)
-            mod:set("medium_font_scale", 72)
-            mod:set("large_font_scale", 72)
-            mod:set("huge_font_scale", 72)
-        elseif new_font == "opendyslexic3" or new_font == "opendyslexic2" then
-            mod:set("hud_font_scale", 100)
-            mod:set("small_font_scale", 80)
-            mod:set("medium_font_scale", 80)
-            mod:set("large_font_scale", 85)
-            mod:set("huge_font_scale", 85)
+        elseif active_font == "default" then
+            set_opendyslexic_slider_defaults()
         end
     end
 
@@ -860,6 +923,12 @@ local function process_text_draw(self, text, font_size, font_type, size_is_ui_sc
                 font_size = font_size * setting_large_font_scale
             else
                 font_size = font_size * setting_huge_font_scale
+            end
+
+            local font_info = get_custom_font_info(font_type)
+            local correction = font_info and active_font_size_corrections[font_info.base_name]
+            if correction then
+                font_size = font_size * correction
             end
 
             if is_hud_renderer then
