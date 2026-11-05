@@ -456,6 +456,7 @@ local function get_renderer_info(renderer)
 end
 
 local hook_hud_studio_text
+local clear_retained_boxes
 
 function mod.on_all_mods_loaded()
     update_all_cached_settings()
@@ -705,6 +706,7 @@ function mod.on_setting_changed(setting_id)
     end
 
     update_all_cached_settings()
+    clear_retained_boxes()
 end
 
 local function get_custom_font_info(font_type)
@@ -917,7 +919,86 @@ end
 local ext_options = {}
 local rect_options = {}
 
-local function draw_text_background(self, text, font_size, font_type, gui_position, gui_size, color, options, alpha_scale)
+local this_frame_text_rects = {}
+local last_frame_text_rects = {}
+local this_frame_text_rect_count = 0
+local last_frame_text_rect_count = 0
+
+local function lower_box_under_nearby_text(box_z, left, top, right, bottom)
+    local rects = last_frame_text_rects
+    for i = 1, last_frame_text_rect_count, 5 do
+        local text_z = rects[i + 4]
+        if text_z < box_z and rects[i] < right and rects[i + 2] > left and rects[i + 1] < bottom and rects[i + 3] > top then
+            box_z = text_z - 0.01
+        end
+    end
+    return box_z
+end
+
+local function record_text_rect(left, top, right, bottom, text_z)
+    local rects = this_frame_text_rects
+    local count = this_frame_text_rect_count
+    rects[count + 1] = left
+    rects[count + 2] = top
+    rects[count + 3] = right
+    rects[count + 4] = bottom
+    rects[count + 5] = text_z
+    this_frame_text_rect_count = count + 5
+end
+
+local retained_boxes_by_renderer = setmetatable({}, { __mode = "k" })
+
+function mod.update()
+    if setting_enable_high_contrast_bg and mod:is_enabled() then
+        last_frame_text_rects, this_frame_text_rects = this_frame_text_rects, last_frame_text_rects
+        last_frame_text_rect_count = this_frame_text_rect_count
+        this_frame_text_rect_count = 0
+
+        for _, records in pairs(retained_boxes_by_renderer) do
+            for _, record in pairs(records) do
+                if record.left then
+                    record_text_rect(record.left, record.top, record.right, record.bottom, record.text_z)
+                end
+            end
+        end
+    end
+end
+
+clear_retained_boxes = function()
+    for renderer, records in pairs(retained_boxes_by_renderer) do
+        for text_id, record in pairs(records) do
+            UIRenderer.destroy_bitmap(renderer, record.box_id)
+            records[text_id] = nil
+        end
+    end
+
+    local hud = Managers.ui and Managers.ui:get_hud()
+    local elements = hud and hud._elements_array
+    if elements then
+        for i = 1, #elements do
+            local element = elements[i]
+            if element.set_dirty then
+                element:set_dirty()
+            end
+        end
+    end
+end
+
+function mod.on_enabled()
+    clear_retained_boxes()
+end
+
+function mod.on_disabled()
+    clear_retained_boxes()
+end
+
+function mod.on_unload(exit_game)
+    if not exit_game then
+        clear_retained_boxes()
+    end
+end
+
+local function draw_text_background(self, text, font_size, font_type, gui_position, gui_size, color, options, alpha_scale, retained_record)
     local renderer_info = get_renderer_info(self)
 
     if is_drawing_chat and not setting_high_contrast_on_chat then
@@ -1005,9 +1086,26 @@ local function draw_text_background(self, text, font_size, font_type, gui_positi
     local pad_y = setting_high_contrast_padding_y
     local render_settings = self.render_settings
     local start_layer = (render_settings and render_settings.start_layer) or 0
-    local z = (gui_position[3] or 0) + start_layer - 0.01
+    local text_z = (gui_position[3] or 0) + start_layer
+    local z = text_z - 0.01
+    local text_left = gui_position[1] + min.x
+    local text_top = gui_position[2] + min.y
 
-    local box_pos = Vector3(gui_position[1] + min.x - pad_x, gui_position[2] + min.y - pad_y, math_max(z, 0))
+    if renderer_info and renderer_info.is_hud then
+        z = lower_box_under_nearby_text(z, text_left - pad_x, text_top - pad_y, text_left + text_w + pad_x, text_top + text_h + pad_y)
+
+        if retained_record then
+            retained_record.left = text_left
+            retained_record.top = text_top
+            retained_record.right = text_left + text_w
+            retained_record.bottom = text_top + text_h
+            retained_record.text_z = text_z
+        else
+            record_text_rect(text_left, text_top, text_left + text_w, text_top + text_h, text_z)
+        end
+    end
+
+    local box_pos = Vector3(text_left - pad_x, text_top - pad_y, math_max(z, 0))
     local box_sz = Vector2(text_w + (pad_x * 2), text_h + (pad_y * 2))
 
     local opacity = setting_high_contrast_opacity
@@ -1038,7 +1136,39 @@ local function draw_text_background(self, text, font_size, font_type, gui_positi
     end
     rect_options.render_pass = render_pass
 
+    if retained_record then
+        local box_id = retained_record.box_id
+        if box_id then
+            retained_record.box_id = Gui2.update_rect(self.gui_retained, box_id, box_pos, box_sz, rect_options) or box_id
+        else
+            retained_record.box_id = Gui2.rect(self.gui_retained, box_pos, box_sz, rect_options)
+        end
+        return true
+    end
+
     Gui2.rect(gui, box_pos, box_sz, rect_options)
+end
+
+local function draw_retained_text(func, self, text, font_size, font_type, gui_position, gui_size, color, options, retained_id, ...)
+    local records = retained_boxes_by_renderer[self]
+    if not records then
+        records = {}
+        retained_boxes_by_renderer[self] = records
+    end
+
+    local record = retained_id ~= true and records[retained_id] or {}
+    local has_box = draw_text_background(self, text, font_size, font_type, gui_position, gui_size, color, options, nil, record)
+    local text_id = func(self, text, font_size, font_type, gui_position, gui_size, color, options, retained_id, ...)
+    local text_key = retained_id == true and text_id or retained_id
+
+    if has_box and text_key then
+        records[text_key] = record
+    elseif record.box_id then
+        UIRenderer.destroy_bitmap(self, record.box_id)
+        records[retained_id] = nil
+    end
+
+    return text_id
 end
 
 local hud_studio_box_position = { 0, 0, 0 }
@@ -1086,9 +1216,25 @@ end)
 mod:hook(UIRenderer, "script_draw_text", function(func, self, text, font_size, font_type, gui_position, gui_size, color, options, retained_id, ...)
     local final_size, final_font, final_text = process_text_draw(self, text, font_size, font_type, not drawing_unscaled_text)
     if setting_enable_high_contrast_bg then
+        if retained_id then
+            return draw_retained_text(func, self, final_text, final_size, final_font, gui_position, gui_size, color, options, retained_id, ...)
+        end
         draw_text_background(self, final_text, final_size, final_font, gui_position, gui_size, color, options)
     end
     return func(self, final_text, final_size, final_font, gui_position, gui_size, color, options, retained_id, ...)
+end)
+
+mod:hook_safe(UIRenderer, "destroy_text", function(self, retained_id)
+    local records = retained_boxes_by_renderer[self]
+    local record = records and records[retained_id]
+    if record then
+        UIRenderer.destroy_bitmap(self, record.box_id)
+        records[retained_id] = nil
+    end
+end)
+
+mod:hook_safe(UIRenderer, "destroy", function(self)
+    retained_boxes_by_renderer[self] = nil
 end)
 
 mod:hook(UIRenderer, "script_draw_text_3d", function(func, self, text, font_size, font_type, ...)
