@@ -3,6 +3,8 @@
 
 Replaces in-game fonts with OpenDyslexic.
 
+**Requires:** [Simple Assets](https://www.nexusmods.com/warhammer40kdarktide/mods/1008)
+
 <details>
 <summary><b>Mod Settings / Commands</b></summary>
 
@@ -20,5 +22,7 @@ Replaces in-game fonts with OpenDyslexic.
 - Padding (Horizontal & Vertical)
 - Box Placement (General HUD, Chat Messages, Killfeed, World Markers, Pings, Nameplates, Interactions, Objectives)
 </details>
+
+**Known Issue:** If text background boxes are on and only some of the marker box options are off (World Markers, Pings, Nameplates, Interactions, Objectives), Markers Improved All-in-one stops controlling which markers draw on top. Setting those options all the same, or turning on Enable on General HUD, avoids this.
 
 🔗 **Links:** [Source Code](https://github.com/MaddyMarv/OpenDyslexicTide) | [Nexus Mods Profile](https://www.nexusmods.com/profile/indicabunny) | [Support Me on Ko-fi](https://ko-fi.com/indicabunny)

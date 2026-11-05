@@ -1,14 +1,19 @@
 {
     "name": "OpenDyslexicTide",
     "author": "IndicaBunny",
-    "version": "1.0.0",
+    "version": "1.0.1",
+    "homepage": "https://www.nexusmods.com/warhammer40kdarktide/mods/1109",
+    "source": "https://github.com/MaddyMarv/OpenDyslexicTide",
+    "funding": {
+        "kofi": "https://ko-fi.com/indicabunny"
+    },
     "description": "Replaces in-game fonts with OpenDyslexic.",
-    "order": {
-        "require": [
+    "dependencies": {
+        "required": [
             "SimpleAssets"
         ],
-        "this_before": [],
-        "this_after": []
+        "self_after": [],
+        "self_before": []
     },
     "localization": {}
 }
