@@ -1,5 +1,8 @@
 Replaces in-game fonts with OpenDyslexic.
 
+For compatibility with CJK make sure you first have this mod: 
+[url=https://www.nexusmods.com/warhammer40kdarktide/mods/1113]Show CJK Glyphs Plus[/url]
+
 [b]Requires:[/b] [url=https://www.nexusmods.com/warhammer40kdarktide/mods/1008]Simple Assets[/url]
 
 [b]Mod Settings / Commands:[/b]
