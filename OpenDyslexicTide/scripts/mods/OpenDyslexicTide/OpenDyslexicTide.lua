@@ -91,6 +91,8 @@ local is_drawing_nameplates = false
 local is_drawing_interactions = false
 local is_drawing_objectives = false
 local measuring_scaled_text = false
+local chat_clip_top = nil
+local chat_clip_bottom = nil
 
 local chat_caret_pass_index = nil
 
@@ -642,6 +644,22 @@ function mod.on_all_mods_loaded()
         if cls then
             hook_hud_element(cls, "chat")
 
+            mod:hook(cls, "_draw_message_widgets", function(func, self, ui_renderer)
+                if not setting_enable_high_contrast_bg then
+                    return func(self, ui_renderer)
+                end
+
+                local scale = ui_renderer.scale or 1
+                local area_top = self:scenegraph_world_position("chat_message_area")[2]
+                chat_clip_top = area_top * scale
+                chat_clip_bottom = (area_top + self:scenegraph_size("chat_message_area")[2]) * scale
+
+                func(self, ui_renderer)
+
+                chat_clip_top = nil
+                chat_clip_bottom = nil
+            end)
+
             mod:hook_safe(cls, "init", function(self)
                 patch_chat_input_widget(self._input_field_widget)
             end)
@@ -1105,8 +1123,21 @@ local function draw_text_background(self, text, font_size, font_type, gui_positi
         end
     end
 
-    local box_pos = Vector3(text_left - pad_x, text_top - pad_y, math_max(z, 0))
-    local box_sz = Vector2(text_w + (pad_x * 2), text_h + (pad_y * 2))
+    local box_top = text_top - pad_y
+    local box_height = text_h + (pad_y * 2)
+
+    if chat_clip_top then
+        if text_top + text_h <= chat_clip_top or text_top >= chat_clip_bottom then
+            return
+        end
+
+        local box_bottom = math_min(box_top + box_height, chat_clip_bottom)
+        box_top = math_max(box_top, chat_clip_top)
+        box_height = box_bottom - box_top
+    end
+
+    local box_pos = Vector3(text_left - pad_x, box_top, math_max(z, 0))
+    local box_sz = Vector2(text_w + (pad_x * 2), box_height)
 
     local opacity = setting_high_contrast_opacity
     local alpha_mult = (render_settings and render_settings.alpha_multiplier) or 1
