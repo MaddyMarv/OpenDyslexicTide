@@ -455,6 +455,8 @@ local function get_renderer_info(renderer)
     return info
 end
 
+local hook_hud_studio_text
+
 function mod.on_all_mods_loaded()
     update_all_cached_settings()
 
@@ -669,6 +671,12 @@ function mod.on_all_mods_loaded()
         hook_chat_element(_G.ConstantElementChat)
     else
         mod:hook_require("scripts/ui/constant_elements/elements/chat/constant_element_chat", hook_chat_element)
+    end
+
+    local hud_studio = get_mod("hud_studio")
+    local hud_studio_gui_direct = hud_studio and rawget(hud_studio, "hud_studio_gui_direct")
+    if hud_studio_gui_direct then
+        hook_hud_studio_text(hud_studio_gui_direct)
     end
 end
 
@@ -909,7 +917,7 @@ end
 local ext_options = {}
 local rect_options = {}
 
-local function draw_text_background(self, text, font_size, font_type, gui_position, gui_size, color, options)
+local function draw_text_background(self, text, font_size, font_type, gui_position, gui_size, color, options, alpha_scale)
     local renderer_info = get_renderer_info(self)
 
     if is_drawing_chat and not setting_high_contrast_on_chat then
@@ -1017,7 +1025,7 @@ local function draw_text_background(self, text, font_size, font_type, gui_positi
     end
 
     table_clear(rect_options)
-    rect_options.color = Color(opacity * alpha_mult, 0, 0, 0)
+    rect_options.color = Color(opacity * alpha_mult * (alpha_scale or 1), 0, 0, 0)
     rect_options.snap_pixel_positions = (render_settings and render_settings.snap_pixel_positions) ~= false
 
     if material_flags and material_flags ~= 0 then
@@ -1031,6 +1039,36 @@ local function draw_text_background(self, text, font_size, font_type, gui_positi
     rect_options.render_pass = render_pass
 
     Gui2.rect(gui, box_pos, box_sz, rect_options)
+end
+
+local hud_studio_box_position = { 0, 0, 0 }
+local hud_studio_box_size = { 0, 0 }
+
+hook_hud_studio_text = function(gui_direct)
+    mod:hook(gui_direct, "text", function(func, ui_renderer, text, font_size, font_type, x, y, z, w, h, color, options, retain_key, shadow_color, shadow_text)
+        local final_size, final_font, final_text = process_text_draw(ui_renderer, text, font_size, font_type)
+
+        if setting_enable_high_contrast_bg and retain_key then
+            local scale = ui_renderer.scale or 1
+            hud_studio_box_position[1] = x * scale
+            hud_studio_box_position[2] = y * scale
+            hud_studio_box_position[3] = shadow_color and z - 1 or z
+            hud_studio_box_size[1] = w * scale
+            hud_studio_box_size[2] = h * scale
+            draw_text_background(ui_renderer, final_text, final_size, final_font, hud_studio_box_position, hud_studio_box_size, color, options, color and color[1] / 255)
+        end
+
+        if shadow_text then
+            local _, _, final_shadow_text = process_text_draw(ui_renderer, shadow_text, font_size, font_type)
+            shadow_text = final_shadow_text
+        end
+        return func(ui_renderer, final_text, final_size, final_font, x, y, z, w, h, color, options, retain_key, shadow_color, shadow_text)
+    end)
+
+    mod:hook(gui_direct, "text_3d", function(func, ui_renderer, text, font_size, font_type, ...)
+        local final_size, final_font, final_text = process_text_draw(ui_renderer, text, font_size, font_type)
+        return func(ui_renderer, final_text, final_size, final_font, ...)
+    end)
 end
 
 local drawing_unscaled_text = false
