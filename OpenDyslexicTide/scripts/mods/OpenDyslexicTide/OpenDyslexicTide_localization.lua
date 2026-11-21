@@ -1,5 +1,3 @@
-local mod = get_mod("OpenDyslexicTide")
-
 return {
 	mod_name = {
 		en = "OpenDyslexicTide",
