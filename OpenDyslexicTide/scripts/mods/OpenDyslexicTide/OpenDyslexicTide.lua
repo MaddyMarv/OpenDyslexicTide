@@ -585,27 +585,26 @@ function mod.on_all_mods_loaded()
 	local SimpleAssets = get_mod("SimpleAssets")
 	if not SimpleAssets then
 		mod:echo("OpenDyslexicTide: SimpleAssets not found. Font functionality disabled.")
-		return
-	end
+	else
+		local function load_font(font_key, asset_path)
+			SimpleAssets.load_font(font_key, asset_path)
+				:next(function(res)
+					loaded_fonts[font_key] = res.resource_name
+					table_clear(custom_font_cache)
+				end)
+				:catch(function(res)
+					mod:warning("Could not load %s: %s", asset_path, tostring(res.error))
+				end)
+		end
 
-	local function load_font(font_key, asset_path)
-		SimpleAssets.load_font(font_key, asset_path)
-			:next(function(res)
-				loaded_fonts[font_key] = res.resource_name
-				table_clear(custom_font_cache)
-			end)
-			:catch(function(res)
-				mod:warning("Could not load %s: %s", asset_path, tostring(res.error))
-			end)
+		load_font("opendyslexic3", "fonts/opendyslexic3.slug")
+		load_font("opendyslexic3_bold", "fonts/opendyslexic3-bold.slug")
+		load_font("opendyslexic2", "fonts/opendyslexic2.slug")
+		load_font("opendyslexic2_bold", "fonts/opendyslexic2-bold.slug")
+		load_font("opendyslexic", "fonts/opendyslexic.slug")
+		load_font("opendyslexic_bold", "fonts/opendyslexic-bold.slug")
+		load_font("opendyslexic_mono", "fonts/opendyslexic-mono.slug")
 	end
-
-	load_font("opendyslexic3", "fonts/opendyslexic3.slug")
-	load_font("opendyslexic3_bold", "fonts/opendyslexic3-bold.slug")
-	load_font("opendyslexic2", "fonts/opendyslexic2.slug")
-	load_font("opendyslexic2_bold", "fonts/opendyslexic2-bold.slug")
-	load_font("opendyslexic", "fonts/opendyslexic.slug")
-	load_font("opendyslexic_bold", "fonts/opendyslexic-bold.slug")
-	load_font("opendyslexic_mono", "fonts/opendyslexic-mono.slug")
 
 	local hooked_elements = {}
 	local function hook_hud_element(element_class, flag_name)
