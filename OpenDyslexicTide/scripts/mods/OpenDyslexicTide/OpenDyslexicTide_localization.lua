@@ -3,7 +3,7 @@ return {
 		en = "OpenDyslexicTide",
 	},
 	mod_description = {
-		en = "Replaces in-game fonts with OpenDyslexic.",
+		en = "Replaces in-game fonts with OpenDyslexic and adds contrast for easier-to-read text.",
 	},
 	font_version = {
 		en = "Font Version",

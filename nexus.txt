@@ -1,4 +1,4 @@
-Replaces in-game fonts with OpenDyslexic.
+Replaces in-game fonts with OpenDyslexic and adds in contrast for easier to read text.
 
 For compatibility with CJK make sure you first have this mod: 
 [url=https://www.nexusmods.com/warhammer40kdarktide/mods/1113]Show CJK Glyphs Plus[/url]
@@ -8,18 +8,19 @@ For compatibility with CJK make sure you first have this mod: 
 [b]Mod Settings / Commands:[/b]
 [spoiler]
 [b]Font Settings[/b]
-- Font Version [Default (Game Font), OpenDyslexic Regular, OpenDyslexic Version 2, OpenDyslexic Version 3]
+- Font Version [Default (Game Font), OpenDyslexic Version 3, OpenDyslexic Version 2, OpenDyslexic Regular]
 - Use Font on HUD
 - HUD Specific Scale (Multiplier)
-- Text Scaling by Font Size (Small, Medium, Large, Huge)
+- Small / Medium / Large / Huge Text Scale
 - Disable Font in Chat Input
 - Full Scale for CJK Glyphs
 
 [b]High Contrast[/b]
 - Enable Text Background Boxes
 - Box Opacity (0 - 255)
-- Padding (Horizontal & Vertical)
-- Box Placement (General HUD, Chat Messages, Killfeed, World Markers, Pings, Nameplates, Interactions, Objectives)
+- Horizontal & Vertical Padding
+- Enable on General HUD
+- Always on (Chat Messages, Killfeed, World Markers, Pings & Smart Tags, Nameplates, Interaction Prompts, Compass & Objectives)
 [/spoiler]
 
 [b]Links:[/b]

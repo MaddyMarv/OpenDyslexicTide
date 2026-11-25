@@ -12,18 +12,19 @@ For compatibility with CJK make sure you first have this mod: 
 <summary><b>Mod Settings / Commands</b></summary>
 
 **Font Settings**
-- Font Version [Default (Game Font), OpenDyslexic Regular, OpenDyslexic Version 2, OpenDyslexic Version 3]
+- Font Version [Default (Game Font), OpenDyslexic Version 3, OpenDyslexic Version 2, OpenDyslexic Regular]
 - Use Font on HUD
 - HUD Specific Scale (Multiplier)
-- Text Scaling by Font Size (Small, Medium, Large, Huge)
+- Small / Medium / Large / Huge Text Scale
 - Disable Font in Chat Input
 - Full Scale for CJK Glyphs
 
 **High Contrast**
 - Enable Text Background Boxes
 - Box Opacity (0 - 255)
-- Padding (Horizontal & Vertical)
-- Box Placement (General HUD, Chat Messages, Killfeed, World Markers, Pings, Nameplates, Interactions, Objectives)
+- Horizontal & Vertical Padding
+- Enable on General HUD
+- Always on (Chat Messages, Killfeed, World Markers, Pings & Smart Tags, Nameplates, Interaction Prompts, Compass & Objectives)
 </details>
 
 🔗 **Links:** [Source Code](https://github.com/MaddyMarv/OpenDyslexicTide) | [Nexus Mods Profile](https://www.nexusmods.com/profile/indicabunny) | [Support Me on Ko-fi](https://ko-fi.com/indicabunny)
